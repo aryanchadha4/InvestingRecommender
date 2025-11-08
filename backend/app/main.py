@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.logging import setup_logging
-from app.api.v1 import health, assets, signals, recommend, portfolio
+from app.api.v1 import health, assets, signals, recommend, portfolio, universe, ingest
 
 setup_logging()
 
@@ -13,7 +13,7 @@ app = FastAPI(title="AI Investment Recommender", version="0.1.0")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:4200", "http://127.0.0.1:4200"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,6 +25,8 @@ app.include_router(assets.router, prefix="/api/v1/assets", tags=["assets"])
 app.include_router(signals.router, prefix="/api/v1/signals", tags=["signals"])
 app.include_router(recommend.router, prefix="/api/v1/recommend", tags=["recommend"])
 app.include_router(portfolio.router, prefix="/api/v1/portfolio", tags=["portfolio"])
+app.include_router(universe.router, prefix="/api/v1/universe", tags=["universe"])
+app.include_router(ingest.router, prefix="/api/v1/ingest", tags=["ingest"])
 
 
 @app.on_event("startup")

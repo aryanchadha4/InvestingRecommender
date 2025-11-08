@@ -26,4 +26,5 @@ class SignalRepo:
         with self.session_factory() as s:
             res = s.execute(stmt)
             s.commit()
-            return res.rowcount or 0
+            # rowcount can be -1 if not available, so return len(rows) as fallback
+            return res.rowcount if res.rowcount and res.rowcount > 0 else len(rows)

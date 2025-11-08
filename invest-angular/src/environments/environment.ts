@@ -1,0 +1,7 @@
+// src/environments/environment.ts (prod)
+
+export const environment = {
+  production: true,
+  apiBase: 'http://localhost:8000'
+};
+

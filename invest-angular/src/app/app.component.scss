@@ -1,0 +1,25 @@
+.container { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
+
+.grid {
+  display: grid; gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  .wide { grid-column: 1 / -1; }
+  label { display: flex; flex-direction: column; }
+  input, select { padding: .5rem .75rem; border: 1px solid #ddd; border-radius: .5rem; }
+}
+
+.buttons { display:flex; gap:.75rem; margin:1rem 0;
+  button { padding:.6rem 1rem; border-radius:.5rem; border:1px solid #111; background:#111; color:#fff; }
+  button[disabled]{ opacity:.5; cursor:not-allowed; }
+}
+
+.results { margin-top:1rem;
+  table { width:100%; border-collapse: collapse; }
+  th, td { padding:.6rem; border-top:1px solid #eee; text-align:left; }
+  thead { background:#fafafa; }
+}
+
+.error { color: #b00020; }
+
+.meta { color:#666; font-size:.9rem; }
+

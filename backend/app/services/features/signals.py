@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import pandas as pd
 from datetime import date, timedelta
 
@@ -9,6 +10,7 @@ from .prices_cov import load_price_matrix, pct_returns
 from ..providers.sentiment_provider import SentimentProvider
 from ..providers.news_provider import NewsProvider
 from ..providers.market_provider import MarketProvider
+from ..providers.universe_provider import UniverseProvider
 from ...db.repositories.signal_repo import SignalRepo
 from ...db.repositories.asset_repo import AssetRepo
 from ...db.repositories.price_repo import PriceRepo
@@ -41,10 +43,17 @@ class SignalService:
         rows = []
         for _, row in df.iterrows():
             date_val = row["date"]
+            # Handle different date formats
             if isinstance(date_val, pd.Timestamp):
                 date_val = date_val.date()
-            elif not isinstance(date_val, date):
-                date_val = pd.to_datetime(date_val).date()
+            elif isinstance(date_val, date):
+                pass  # Already a date object
+            else:
+                # Convert string or other types to date
+                if hasattr(date_val, 'date'):
+                    date_val = date_val.date()
+                else:
+                    date_val = pd.to_datetime(str(date_val)).date()
 
             rows.append(
                 {
@@ -123,3 +132,66 @@ class SignalService:
         # weighted sum baseline
         value = 0.7 * mom + 0.3 * sen
         return {"symbol": symbol, "momentum": mom, "sentiment": sen, "score": value}
+
+
+class UniverseService:
+    def __init__(self, universe: UniverseProvider, market: MarketProvider):
+        self.universe = universe
+        self.asset_repo = AssetRepo()
+        self.price_repo = PriceRepo()
+        self.market = market
+
+    async def ensure_assets_and_backfill(self, count: int = 100, lookback_days: int = 365 * 3) -> dict:
+        symbols = await self.universe.expanded_universe(count=count)
+        # 1) persist assets
+        self.asset_repo.ensure_assets([{"symbol": s, "name": s, "asset_class": "equity"} for s in symbols])
+
+        # 2) get asset_ids
+        with SessionLocal() as s:
+            ids = {s: self.asset_repo.get_by_symbol(s).id for s in symbols}
+
+        # 3) batch backfill concurrently
+        end, start = date.today(), date.today() - timedelta(days=lookback_days)
+
+        async def fetch_and_upsert(sym: str) -> tuple[str, int]:
+            try:
+                df = await self.market.fetch_daily_prices(sym, start, end)
+                if df is None or df.empty:
+                    return (sym, 0)
+
+                rows = []
+                for _, row in df.iterrows():
+                    date_val = row["date"]
+                    # Handle different date formats
+                    if isinstance(date_val, pd.Timestamp):
+                        date_val = date_val.date()
+                    elif isinstance(date_val, date):
+                        pass  # Already a date object
+                    else:
+                        # Convert string or other types to date
+                        if hasattr(date_val, "date"):
+                            date_val = date_val.date()
+                        else:
+                            date_val = pd.to_datetime(str(date_val)).date()
+
+                    rows.append(
+                        {
+                            "asset_id": ids[sym],
+                            "date": date_val,
+                            "close": float(row["close"]),
+                            "volume": float(row["volume"]),
+                        }
+                    )
+                n = self.price_repo.upsert_prices(rows)
+                return (sym, n)
+            except Exception:
+                return (sym, 0)
+
+        sem = asyncio.Semaphore(10)  # limit concurrency
+
+        async def guarded(sym: str):
+            async with sem:
+                return await fetch_and_upsert(sym)
+
+        results = await asyncio.gather(*[guarded(s) for s in symbols])
+        return {"symbols": symbols, "upserts": {k: v for k, v in results}}

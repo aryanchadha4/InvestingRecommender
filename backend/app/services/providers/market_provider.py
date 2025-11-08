@@ -32,9 +32,25 @@ class MarketProvider:
         df = yf.download(symbol, start=start, end=end, progress=False, auto_adjust=False)
         if df.empty:
             raise ValueError(f"No yfinance data for {symbol}")
-        df = df.rename(columns={"Close": "close", "Volume": "volume"})
-        df = df.reset_index()[["Date", "close", "volume"]]
-        df["date"] = pd.to_datetime(df["Date"]).dt.date
+        
+        # Handle MultiIndex columns (yfinance returns MultiIndex when single symbol)
+        if isinstance(df.columns, pd.MultiIndex):
+            # Flatten MultiIndex columns
+            df.columns = df.columns.droplevel(1) if df.columns.nlevels > 1 else df.columns
+        
+        # Reset index to get Date as a column
+        df = df.reset_index()
+        
+        # Rename columns
+        df = df.rename(columns={"Close": "close", "Volume": "volume", "Date": "date"})
+        
+        # Ensure date column is datetime, then convert to date
+        if "date" not in df.columns and "Date" in df.columns:
+            df["date"] = pd.to_datetime(df["Date"]).dt.date
+        elif "date" in df.columns:
+            df["date"] = pd.to_datetime(df["date"]).dt.date
+        
+        # Select only needed columns
         df = df[["date", "close", "volume"]].dropna()
         return df
 

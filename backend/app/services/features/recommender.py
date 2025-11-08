@@ -7,6 +7,7 @@ from .signals import SignalService
 from .risk import policy_from_risk_level
 from .optimizer import mean_variance_opt
 from .prices_cov import load_price_matrix, cov_matrix
+from .basket import top_by_avg_volume
 
 DEFAULT_SYMBOLS = ["VOO", "QQQM", "IWM", "EFA", "EMB", "AGG"]
 
@@ -16,7 +17,7 @@ class RecommenderService:
         self.signals = signal_service
 
     async def recommend(self, risk: str, invest_amount: float, symbols: list[str] = None):
-        symbols = symbols or DEFAULT_SYMBOLS
+        symbols = symbols or top_by_avg_volume(k=60) or DEFAULT_SYMBOLS
 
         # ensure data exists & compute signals
         sigs = []
